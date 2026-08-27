@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bug Bytes by Ultimate</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+    .header {
+      border-bottom: 2px solid #30363d;
+      padding-bottom: 24px;
+      margin-bottom: 36px;
+    }
+    .header h1 {
+      font-size: 28px;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .header .tagline {
+      font-size: 14px;
+      color: #8b949e;
+    }
+    .header .author {
+      font-size: 12px;
+      color: #58a6ff;
+      margin-top: 12px;
+    }
+    .header .author a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+    .header .author a:hover {
+      text-decoration: underline;
+    }
+    .issues {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .issue {
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 20px 24px;
+      background: #161b22;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s;
+    }
+    .issue:hover {
+      border-color: #58a6ff;
+    }
+    .issue .number {
+      font-size: 11px;
+      color: #8b949e;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .issue .title {
+      font-size: 18px;
+      color: #fff;
+      margin: 6px 0;
+      font-weight: bold;
+    }
+    .issue .meta {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 8px;
+    }
+    .issue .meta .repo {
+      color: #7ee787;
+    }
+    .issue .meta .pr {
+      color: #58a6ff;
+    }
+    .issue .desc {
+      font-size: 13px;
+      color: #b1bac4;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+    .footer {
+      margin-top: 48px;
+      border-top: 2px solid #30363d;
+      padding-top: 20px;
+      font-size: 12px;
+      color: #484f58;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Bug Bytes</h1>
+      <p class="tagline">small fix &middot; big lesson &mdash; bite-sized stories from upstream contributions</p>
+      <p class="author">by <a href="https://github.com/Ultimate-etamitlU">Parikshit Khedekar</a> &middot; Red Hat &middot; OpenShift Networking</p>
+    </div>
+
+    <div class="issues">
+
+      <a href="004-ghost-pod-crashed-controller.html" class="issue">
+        <div class="number">#4 &middot; Aug 27, 2026</div>
+        <div class="title">the ghost pod that crashed the controller</div>
+        <div class="desc">After KubeVirt live migration, the source pod gets garbage-collected &mdash; but the EVPN controller still tries to read it. Nil dereference &rarr; SIGSEGV &rarr; crash loop &rarr; upgrades blocked.</div>
+        <div class="meta"><span class="repo">ovn-kubernetes/ovn-kubernetes</span> &middot; <span class="pr">PR #6866</span></div>
+      </a>
+
+      <a href="003-one-bad-node-killed-egressip.html" class="issue">
+        <div class="number">#3 &middot; Aug 24, 2026</div>
+        <div class="title">one bad node killed every egressip</div>
+        <div class="desc">One node with a missing host-cidrs annotation made the EgressIP controller abort assignments for the entire cluster. Every egress pod lost its source IP.</div>
+        <div class="meta"><span class="repo">ovn-kubernetes/ovn-kubernetes</span> &middot; <span class="pr">PR #6773</span></div>
+      </a>
+
+      <a href="002-optional-label-bricks-clusters.html" class="issue">
+        <div class="number">#2 &middot; Jul 29, 2026</div>
+        <div class="title">the optional label that bricks clusters</div>
+        <div class="desc">A docs-only fix for a verification step that told users to add a label that could break live migration on their cluster.</div>
+        <div class="meta"><span class="repo">openshift/openshift-docs</span> &middot; <span class="pr">PR #112643</span></div>
+      </a>
+
+      <a href="001-silent-nil-unidling.html" class="issue">
+        <div class="number">#1 &middot; Jun 17, 2026</div>
+        <div class="title">silent failure in the unidling controller</div>
+        <div class="desc">A missing "vip" key returned nil instead of an error. The caller thought everything was fine. Services stayed asleep forever.</div>
+        <div class="meta"><span class="repo">ovn-kubernetes/ovn-kubernetes</span> &middot; <span class="pr">PR #6558</span></div>
+      </a>
+
+    </div>
+
+    <div class="footer">
+      each issue is one upstream contribution &middot; one root cause &middot; one lesson
+    </div>
+  </div>
+</body>
+</html>

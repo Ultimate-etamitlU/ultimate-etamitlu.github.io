@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PR Spotlight: one bad node killed every egressip</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Courier New',Courier,monospace;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:3px solid #111;border-radius:4px;">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:#111;padding:20px 28px;">
+            <p style="margin:0;color:#fff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">upstream contribution · merged ✓</p>
+            <h1 style="margin:8px 0 0;color:#fff;font-size:22px;line-height:1.3;">
+              one bad node killed every egressip in the cluster
+            </h1>
+            <p style="margin:6px 0 0;color:#aaa;font-size:12px;">
+              <a href="https://github.com/ovn-kubernetes/ovn-kubernetes" style="color:#aaa;text-decoration:none;">github.com/ovn-kubernetes/ovn-kubernetes</a> · <a href="https://github.com/ovn-kubernetes/ovn-kubernetes/pull/6773" style="color:#aaa;text-decoration:none;">PR #6773</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- SECTION 1: what is EgressIP -->
+        <tr>
+          <td style="padding:24px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fffde7;padding:14px 18px;">
+                  <p style="margin:0 0 6px;font-size:13px;font-weight:bold;color:#111;">🐣 first — what is "EgressIP"?</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    Pods normally share a node's IP for outbound traffic.<br>
+                    <strong>EgressIP</strong> gives pods a <strong>stable, dedicated source IP</strong> instead.<br>
+                    Firewalls and partners allowlist this IP → pods can reach external services.<br>
+                    The cluster manager assigns EgressIPs to eligible nodes using<br>
+                    each node's <span style="font-family:monospace;background:#eee;padding:1px 4px;">k8s.ovn.org/host-cidrs</span> annotation.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 2: the bugs -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fce4ec;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">🐛 two problems found</p>
+
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding:6px 0;border-bottom:1px dashed #ccc;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>1. 🔴 conflict check aborts on one bad node</strong><br>
+                          <span style="font-family:monospace;font-size:11px;">isEgressIPAddrConflict()</span> reads every node's
+                          <span style="background:#ffe082;padding:1px 4px;font-family:monospace;">host-cidrs</span> annotation.<br>
+                          If <em>any</em> node's annotation is missing or malformed → returns error.<br>
+                          <span style="font-family:monospace;font-size:11px;">assignEgressIPs()</span> sees the error → <strong>aborts the entire pass</strong>.<br>
+                          <span style="color:#b71c1c;font-size:11px;font-weight:bold;">every EgressIP in the cluster goes unassigned → cluster-wide egress outage</span>
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 0;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>2. bad nodes stay in the assignment pool</strong><br>
+                          A node with the <span style="font-family:monospace;font-size:11px;">egress-assignable</span> label but
+                          broken <span style="font-family:monospace;font-size:11px;">host-cidrs</span><br>
+                          was still considered a valid target for new EgressIP assignments.<br>
+                          IPs assigned to unvalidatable nodes → <strong>inconsistent state</strong>.<br>
+                          <span style="color:#777;font-size:11px;">existing assignments on the bad node were never released</span>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 3: what changed -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#f3e5f5;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">💭 what changed?</p>
+                  <table width="100%" cellpadding="6" cellspacing="0">
+                    <tr>
+                      <td width="48%" style="background:#ffe0e0;border:1px solid #e57373;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#c62828;">before fix</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.6;">
+                          node-3 loses host-cidrs<br>
+                          ↓<br>
+                          conflict check → error<br>
+                          ↓<br>
+                          assignEgressIPs aborts<br>
+                          ↓<br>
+                          ALL egressips: status = []<br>
+                          ↓<br>
+                          entire cluster: no egress 💀
+                        </p>
+                      </td>
+                      <td width="4%"></td>
+                      <td width="48%" style="background:#e0f7e0;border:1px solid #66bb6a;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#1b5e20;">after fix</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.6;">
+                          node-3 loses host-cidrs<br>
+                          ↓<br>
+                          conflict check → skip + warn<br>
+                          ↓<br>
+                          node-3 removed from pool<br>
+                          ↓<br>
+                          existing IPs released → move<br>
+                          ↓<br>
+                          other nodes: assigned ✓
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 4: lesson -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#e8f5e9;padding:14px 18px;">
+                  <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#111;">💡 the rule</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    <strong>contain the blast radius.</strong><br>
+                    When one component is broken, punish that component — not everyone.<br>
+                    A bad node is a bad node. It should not take the whole fleet down.<br><br>
+                    Skip, isolate, log, and let the healthy ones keep working.<br>
+                    Fail closed for the individual. Fail open for the system.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td style="padding:20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px dashed #111;padding-top:14px;">
+              <tr>
+                <td>
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:11px;color:#555;line-height:1.8;">
+                        <strong>merged:</strong> Aug 24 2026 &nbsp;|&nbsp;
+                        <strong>repo:</strong> ovn-kubernetes/ovn-kubernetes
+                      </td>
+                      <td align="right" style="font-size:11px;color:#555;line-height:1.8;">
+                        <strong>pr:</strong> <a href="https://github.com/ovn-kubernetes/ovn-kubernetes/pull/6773" style="color:#111;">#6773</a>
+                      </td>
+                    </tr>
+                  </table>
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:11px;color:#777;">small fix · big lesson</td>
+                      <td align="right" style="font-size:11px;color:#777;">contributed by Parikshit Khedekar</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

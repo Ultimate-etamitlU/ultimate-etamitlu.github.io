@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bug Bytes #2: the optional label that bricks clusters</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Courier New',Courier,monospace;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:3px solid #111;border-radius:4px;">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:#111;padding:20px 28px;">
+            <p style="margin:0;color:#fff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">docs contribution · merged ✓</p>
+            <h1 style="margin:8px 0 0;color:#fff;font-size:22px;line-height:1.3;">
+              the optional label that bricks clusters
+            </h1>
+            <p style="margin:6px 0 0;color:#aaa;font-size:12px;">
+              <a href="https://github.com/openshift/openshift-docs" style="color:#aaa;">github.com/openshift/openshift-docs</a> · <a href="https://github.com/openshift/openshift-docs/pull/112643" style="color:#aaa;">PR #112643</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- SECTION 1: background -->
+        <tr>
+          <td style="padding:24px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fffde7;padding:14px 18px;">
+                  <p style="margin:0 0 6px;font-size:13px;font-weight:bold;color:#111;">🐣 first — what is limited live migration?</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    OpenShift lets you migrate your CNI from <strong>OpenShift SDN → OVN-Kubernetes</strong> without taking the cluster down.<br>
+                    This is called <strong>limited live migration</strong> — nodes migrate one by one while the cluster stays up.<br>
+                    After migration: you run a <strong>cleanup step</strong> to remove the migration annotation.<br>
+                    Run cleanup too early → cluster stuck in a <strong>hybrid SDN+OVN zombie state</strong>. No easy way out — requires a ticket and engineering involvement to recover.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 2: the problem -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fce4ec;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">🐛 one word caused it all</p>
+
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding:6px 0;border-bottom:1px dashed #ccc;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>1. verification was marked "Optional"</strong><br>
+                          The verification step in <span style="background:#ffe082;padding:1px 4px;font-family:monospace;">initiating-limited-live-migration.adoc</span>
+                          had <span style="background:#ffe082;padding:1px 4px;font-family:monospace;">[Optional]</span> in the title.<br>
+                          <span style="color:#777;font-size:11px;">users read "optional" → skip it → run cleanup immediately</span>
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 0;border-bottom:1px dashed #ccc;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>2. gate language was lost in a prior refactor</strong><br>
+                          <a href="https://github.com/openshift/openshift-docs/pull/78178" style="color:#333;">PR #78178</a> split the original monolithic module. During the split,
+                          the gate language — <em>"Complete the following steps only if the migration succeeds"</em> — was dropped.<br>
+                          <span style="color:#777;font-size:11px;">the procedure became a linear flow with no safety barrier before cleanup</span>
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 0;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>3. 🔴 only 2 checks — not nearly enough</strong><br>
+                          original verification checked only: network type + status condition.<br>
+                          MCP rollout, node machineconfig convergence, and Operator health were never checked.<br>
+                          <span style="color:#b71c1c;font-size:11px;font-weight:bold;">migration could look "done" while nodes were still mid-rollout</span>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 3: before / after -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#f3e5f5;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">💭 what changed?</p>
+                  <table width="100%" cellpadding="6" cellspacing="0">
+                    <tr>
+                      <td width="48%" style="background:#ffe0e0;border:1px solid #e57373;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#c62828;">before</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.8;">
+                          [Optional] Verify migration<br>
+                          ✓ check network type<br>
+                          ✓ check status condition<br>
+                          ↓<br>
+                          oc annotate ... -  ← cleanup<br>
+                          ↓<br>
+                          🔥 cluster half-SDN half-OVN
+                        </p>
+                      </td>
+                      <td width="4%"></td>
+                      <td width="48%" style="background:#e0f7e0;border:1px solid #66bb6a;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#1b5e20;">after</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.8;">
+                          Verify migration (mandatory)<br>
+                          ✓ network type = OVNKubernetes<br>
+                          ✓ NetworkTypeMigrationCompleted<br>
+                          ✓ all MCP pools updated<br>
+                          ✓ all nodes: currentConfig=done<br>
+                          ✓ all ClusterOperators healthy<br>
+                          ⚠ WARNING: do not proceed<br>
+                          &nbsp;&nbsp;until all checks pass<br>
+                          ↓<br>
+                          oc annotate ... -  ← safe ✓
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 4: the rule -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#e8f5e9;padding:14px 18px;">
+                  <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#111;">💡 the rule</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    <strong>never mark a safety gate as "Optional".</strong><br>
+                    Users follow the happy path. If a step looks skippable, they skip it.<br>
+                    If skipping it can brick the cluster — it is not optional.<br><br>
+                    When docs split a procedure across modules, <strong>re-read the gate language</strong>.<br>
+                    Refactors that move content without moving its warnings ship silent regressions.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td style="padding:20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px dashed #111;padding-top:14px;">
+              <tr>
+                <td>
+                  <p style="margin:0;font-size:11px;color:#555;line-height:1.8;">
+                    <strong>merged:</strong> Jul 29 2026 &nbsp;|&nbsp;
+                    <strong>repo:</strong> <a href="https://github.com/openshift/openshift-docs" style="color:#555;">openshift/openshift-docs</a> &nbsp;|&nbsp;
+                    <strong>pr:</strong> <a href="https://github.com/openshift/openshift-docs/pull/112643" style="color:#111;">#112643</a>
+                  </p>
+                  <p style="margin:6px 0 0;font-size:11px;color:#777;">
+                    small fix · big lesson · contributed by Parikshit Khedekar
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>
