@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bug Bytes #5: the flaky test that fought its own controller</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Courier New',Courier,monospace;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:3px solid #111;border-radius:4px;">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:#111;padding:20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td style="margin:0;color:#fff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">upstream contribution</td>
+              <td align="right" style="margin:0;color:#fff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">merged ✓</td>
+            </tr></table>
+            <h1 style="margin:8px 0 0;color:#fff;font-size:22px;line-height:1.3;">
+              the flaky test that fought its own controller
+            </h1>
+            <p style="margin:6px 0 0;color:#aaa;font-size:12px;">
+              <a href="https://github.com/ovn-kubernetes/ovn-kubernetes" style="color:#aaa;text-decoration:none;">github.com/ovn-kubernetes/ovn-kubernetes</a> · <a href="https://github.com/ovn-kubernetes/ovn-kubernetes/pull/6863" style="color:#aaa;text-decoration:none;">PR #6863</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- SECTION 1: what is egressip e2e testing -->
+        <tr>
+          <td style="padding:24px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fffde7;padding:14px 18px;">
+                  <p style="margin:0 0 6px;font-size:13px;font-weight:bold;color:#111;">🐣 first — what is an "orphan node" E2E test?</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    EgressIP assigns source IPs to pods leaving the cluster.<br>
+                    If a node loses its <strong>host-cidrs</strong> annotation, it's "orphaned."<br>
+                    The E2E test verifies the controller <strong>skips</strong> orphan nodes<br>
+                    instead of crashing or blocking all other assignments.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 2: the bug -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fce4ec;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">🐛 one problem found</p>
+
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding:6px 0;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>1. 🔴 test vs. controller race — the test can't win</strong><br>
+                          The test <strong>deleted</strong> the host-cidrs annotation from a real node.<br>
+                          But <span style="font-family:monospace;">ovnkube-node</span> watches netlink address events and<br>
+                          <strong>immediately restores</strong> the annotation.<br><br>
+                          The test and the controller were fighting over the same field.<br>
+                          Sometimes the test won. Sometimes the controller won.<br>
+                          <span style="color:#b71c1c;font-size:11px;font-weight:bold;">classic flake — the test fought a controller it couldn't beat</span>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 3: what changed -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#f3e5f5;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">💭 what changed?</p>
+                  <table width="100%" cellpadding="6" cellspacing="0">
+                    <tr>
+                      <td width="48%" style="background:#ffe0e0;border:1px solid #e57373;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#c62828;">before fix</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.6;">
+                          pick a real node<br>
+                          ↓<br>
+                          delete host-cidrs annotation<br>
+                          ↓<br>
+                          ovnkube-node: "hey! put it back"<br>
+                          ↓<br>
+                          test checks annotation gone<br>
+                          ↓<br>
+                          sometimes yes, sometimes no 🎲
+                        </p>
+                      </td>
+                      <td width="4%"></td>
+                      <td width="48%" style="background:#e0f7e0;border:1px solid #66bb6a;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#1b5e20;">after fix</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.6;">
+                          create a synthetic Node object<br>
+                          ↓<br>
+                          no ovnkube-node running on it<br>
+                          ↓<br>
+                          nobody restores the annotation<br>
+                          ↓<br>
+                          test owns the state completely<br>
+                          ↓<br>
+                          deterministic ✓
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 4: lesson -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#e8f5e9;padding:14px 18px;">
+                  <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#111;">💡 the rule</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    <strong>never mutate state that a controller is also managing.</strong><br>
+                    If you poke a field and a controller restores it,<br>
+                    you've built a race, not a test.<br><br>
+                    Instead, create state the controller <em>can't</em> touch —<br>
+                    a synthetic object with no agent behind it.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td style="padding:20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px dashed #111;padding-top:14px;">
+              <tr>
+                <td>
+                  <p style="margin:0;font-size:11px;color:#555;line-height:1.8;">
+                    <strong>merged:</strong> Oct 8 2026 &nbsp;|&nbsp;
+                    <strong>repo:</strong> ovn-kubernetes/ovn-kubernetes &nbsp;|&nbsp;
+                    <strong>pr:</strong> <a href="https://github.com/ovn-kubernetes/ovn-kubernetes/pull/6863" style="color:#111;">#6863</a>
+                  </p>
+                  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td style="font-size:11px;color:#777;">small fix · big lesson</td>
+                    <td align="right" style="font-size:11px;color:#777;">contributed by: Parikshit Khedekar</td>
+                  </tr></table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

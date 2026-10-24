@@ -109,6 +109,27 @@
 
     <div class="issues">
 
+      <a href="007-the-number-too-big-to-read-back.html" class="issue">
+        <div class="number">#7 &middot; Oct 23, 2026</div>
+        <div class="title">the number too big to read back</div>
+        <div class="desc">Whereabouts wrote IPv6 offsets as unsigned integers but read them back as signed. Half the address range silently vanished &mdash; IPs never freed, pods stuck in DADFAILED forever.</div>
+        <div class="meta"><span class="repo">k8snetworkplumbingwg/whereabouts</span> &middot; <span class="pr">PR #760</span></div>
+      </a>
+
+      <a href="006-the-error-that-fell-through.html" class="issue">
+        <div class="number">#6 &middot; Oct 23, 2026</div>
+        <div class="title">the error that fell through</div>
+        <div class="desc">When pool.Update() failed, Whereabouts kept going and created an ORIP record anyway. Two bookkeeping systems drifted apart &mdash; one said "not allocated", the other said "reserved".</div>
+        <div class="meta"><span class="repo">k8snetworkplumbingwg/whereabouts</span> &middot; <span class="pr">PR #748</span></div>
+      </a>
+
+      <a href="005-flaky-test-fought-its-own-controller.html" class="issue">
+        <div class="number">#5 &middot; Oct 8, 2026</div>
+        <div class="title">the flaky test that fought its own controller</div>
+        <div class="desc">The E2E test deleted a node's annotation to simulate an orphan &mdash; but ovnkube-node instantly restored it. A race the test could never win. Fix: create a synthetic node with no agent behind it.</div>
+        <div class="meta"><span class="repo">ovn-kubernetes/ovn-kubernetes</span> &middot; <span class="pr">PR #6863</span></div>
+      </a>
+
       <a href="004-ghost-pod-crashed-controller.html" class="issue">
         <div class="number">#4 &middot; Aug 27, 2026</div>
         <div class="title">the ghost pod that crashed the controller <span style="color:#58a6ff;font-size:14px;">&#x2726;</span></div>

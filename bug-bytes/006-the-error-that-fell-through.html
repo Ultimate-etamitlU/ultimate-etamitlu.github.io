@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bug Bytes #6: the error that fell through</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Courier New',Courier,monospace;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:3px solid #111;border-radius:4px;">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:#111;padding:20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0"><tr>
+              <td style="margin:0;color:#fff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">upstream contribution</td>
+              <td align="right" style="margin:0;color:#fff;font-size:11px;letter-spacing:2px;text-transform:uppercase;">merged ✓</td>
+            </tr></table>
+            <h1 style="margin:8px 0 0;color:#fff;font-size:22px;line-height:1.3;">
+              the error that fell through
+            </h1>
+            <p style="margin:6px 0 0;color:#aaa;font-size:12px;">
+              <a href="https://github.com/k8snetworkplumbingwg/whereabouts" style="color:#aaa;text-decoration:none;">github.com/k8snetworkplumbingwg/whereabouts</a> · <a href="https://github.com/k8snetworkplumbingwg/whereabouts/pull/748" style="color:#aaa;text-decoration:none;">PR #748</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- SECTION 1: what is whereabouts IPAM -->
+        <tr>
+          <td style="padding:24px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fffde7;padding:14px 18px;">
+                  <p style="margin:0 0 6px;font-size:13px;font-weight:bold;color:#111;">🐣 first — what is Whereabouts?</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    <strong>Whereabouts</strong> is a CNI IPAM plugin for Kubernetes.<br>
+                    It tracks which IP addresses are assigned to which pods.<br>
+                    Two custom resources keep the books:<br>
+                    &bull; <strong>IPPool</strong> — the allocation bitmap (which IPs are taken)<br>
+                    &bull; <strong>ORIP</strong> — cross-range reservation (for overlapping subnets)
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 2: the bugs -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#fce4ec;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">🐛 three problems found</p>
+
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding:6px 0;border-bottom:1px dashed #ccc;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>1. 🔴 pool.Update fails → ORIP created anyway</strong><br>
+                          When <span style="font-family:monospace;">pool.Update()</span> returns a permanent error,<br>
+                          execution falls through to create an ORIP record.<br>
+                          <span style="color:#b71c1c;font-size:11px;font-weight:bold;">IPPool says "not allocated" but ORIP says "reserved" → drift</span>
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 0;border-bottom:1px dashed #ccc;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>2. retries exhausted → still falls through</strong><br>
+                          All temporary-error retries consumed, no successful write,<br>
+                          but the code kept going as if allocation succeeded.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 0;">
+                        <p style="margin:0;font-size:12px;color:#333;">
+                          <strong>3. overlapping range conflicts exhaust retries silently</strong><br>
+                          Every candidate IP already reserved by another pod.<br>
+                          Retry loop exits with no error — ORIP created for an IP<br>
+                          that was never written to the IPPool.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 3: what changed -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#f3e5f5;padding:14px 18px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:bold;color:#111;">💭 what changed?</p>
+                  <table width="100%" cellpadding="6" cellspacing="0">
+                    <tr>
+                      <td width="48%" style="background:#ffe0e0;border:1px solid #e57373;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#c62828;">before fix</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.6;">
+                          pool.Update() fails<br>
+                          ↓<br>
+                          error ignored / retries gone<br>
+                          ↓<br>
+                          falls through to ORIP update<br>
+                          ↓<br>
+                          ORIP created without IPPool ✗<br>
+                          ↓<br>
+                          records diverge silently 💀
+                        </p>
+                      </td>
+                      <td width="4%"></td>
+                      <td width="48%" style="background:#e0f7e0;border:1px solid #66bb6a;border-radius:4px;vertical-align:top;">
+                        <p style="margin:0;font-size:11px;font-weight:bold;color:#1b5e20;">after fix</p>
+                        <p style="margin:6px 0 0;font-size:11px;color:#333;font-family:monospace;line-height:1.6;">
+                          pool.Update() fails<br>
+                          ↓<br>
+                          poolUpdateSucceeded = false<br>
+                          ↓<br>
+                          return error immediately<br>
+                          ↓<br>
+                          ORIP update never reached<br>
+                          ↓<br>
+                          consistent state ✓
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SECTION 4: lesson -->
+        <tr>
+          <td style="padding:18px 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #111;border-radius:4px;">
+              <tr>
+                <td style="background:#e8f5e9;padding:14px 18px;">
+                  <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#111;">💡 the rule</p>
+                  <p style="margin:0;font-size:13px;color:#333;line-height:1.7;">
+                    <strong>when two records must stay in sync, gate the second on the first.</strong><br>
+                    If step A fails, step B must not run.<br>
+                    A retry loop that exits without error isn't "success" —<br>
+                    it's "gave up quietly." Track whether the write actually landed.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td style="padding:20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px dashed #111;padding-top:14px;">
+              <tr>
+                <td>
+                  <p style="margin:0;font-size:11px;color:#555;line-height:1.8;">
+                    <strong>merged:</strong> Oct 23 2026 &nbsp;|&nbsp;
+                    <strong>repo:</strong> k8snetworkplumbingwg/whereabouts &nbsp;|&nbsp;
+                    <strong>pr:</strong> <a href="https://github.com/k8snetworkplumbingwg/whereabouts/pull/748" style="color:#111;">#748</a>
+                  </p>
+                  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td style="font-size:11px;color:#777;">small fix · big lesson</td>
+                    <td align="right" style="font-size:11px;color:#777;">contributed by: Parikshit Khedekar</td>
+                  </tr></table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>
